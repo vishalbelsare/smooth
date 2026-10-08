@@ -1,0 +1,480 @@
+import warnings
+
+import numpy as np
+
+
+def _is_meaningful_order(value):
+    """Return True if the ARIMA order argument carries an explicit non-zero spec.
+
+    Used by :func:`resolve_arima_orders` to decide whether the scalar
+    ``ar_order`` / ``i_order`` / ``ma_order`` arguments are "supplied". ``None``
+    and any all-zero list/scalar are treated as unset.
+    """
+    if value is None:
+        return False
+    if isinstance(value, (int, float, np.integer, np.floating)):
+        return int(value) != 0
+    if isinstance(value, (list, tuple, np.ndarray)):
+        return any(int(v) != 0 for v in value)
+    return False
+
+
+def resolve_arima_orders(
+    orders, ar_order, i_order, ma_order, arima_select=False, silent=False
+):
+    """Resolve the ARIMA-order specification from ``orders`` dict + scalar triplet.
+
+    Precedence rule (shared by ``ADAM`` and ``AutoADAM``):
+
+    1. If ``orders`` (a dict) is supplied, use it and **ignore** the three
+       scalar arguments. ``select`` is taken from ``orders.get("select", ...)``;
+       falls back to the ``arima_select`` parameter if absent.
+    2. Else if any of ``ar_order`` / ``i_order`` / ``ma_order`` carries a
+       non-zero value, use them as **fixed** orders (no selection).
+    3. Else return ``(None, False)`` — no ARIMA component at all.
+
+    A warning is emitted (unless ``silent=True``) when both ``orders`` and at
+    least one of the triplet are supplied, so the silent-shadowing previously
+    in place doesn't go unnoticed.
+
+    Parameters
+    ----------
+    orders : dict or None
+        ARIMA order dict (may include ``"ar"``, ``"i"``, ``"ma"``, ``"select"``).
+    ar_order, i_order, ma_order : int / list[int] / None
+        Scalar alternatives to ``orders``.
+    arima_select : bool, default False
+        Default for the ``"select"`` key when ``orders`` doesn't specify it.
+    silent : bool, default False
+        Suppress the both-supplied warning.
+
+    Returns
+    -------
+    (orders_resolved, select_flag) : tuple
+        ``orders_resolved`` is either a dict ready for ``parameters_checker``
+        (with a ``"select"`` key) or ``None``. ``select_flag`` mirrors the
+        ``"select"`` field for callers that want it as a plain bool.
+    """
+    triplet_supplied = any(
+        _is_meaningful_order(x) for x in (ar_order, i_order, ma_order)
+    )
+
+    if orders is not None:
+        if triplet_supplied and not silent:
+            warnings.warn(
+                "Both `orders` and one or more of `ar_order` / `i_order` / "
+                "`ma_order` were supplied; `orders` takes precedence and the "
+                "scalar arguments are ignored.",
+                stacklevel=2,
+            )
+        resolved = dict(orders)
+        resolved["select"] = bool(resolved.get("select", arima_select))
+        return resolved, resolved["select"]
+
+    if triplet_supplied:
+        # When ``orders=None`` and the triplet has values, use them as the
+        # ARIMA spec. ``arima_select`` (the explicit parameter) decides whether
+        # the values are treated as upper bounds for a search (True) or as
+        # fixed orders (False). Default is False — to opt into selection a
+        # caller passes ``arima_select=True`` or uses the ``orders`` dict with
+        # ``"select": True``.
+        return (
+            {
+                "ar": ar_order if ar_order is not None else 0,
+                "i": i_order if i_order is not None else 0,
+                "ma": ma_order if ma_order is not None else 0,
+                "select": bool(arima_select),
+            },
+            bool(arima_select),
+        )
+
+    return None, False
+
+
+def _expand_orders(orders):
+    """
+    Expand ARIMA orders into AR, I, MA components.
+
+    Parameters
+    ----------
+    orders : list, tuple, int, dict, or None
+        ARIMA order specification. Can be:
+        - dict with 'ar', 'i', 'ma' keys
+        - list/tuple of [ar, i, ma] values
+        - single int (interpreted as AR order)
+
+    Returns
+    -------
+    tuple
+        (ar_orders, i_orders, ma_orders)
+    """
+    # Default values
+    ar_orders = i_orders = ma_orders = [0]
+
+    if orders is None:
+        return ar_orders, i_orders, ma_orders
+
+    # Handle dict input (from ADAM class)
+    if isinstance(orders, dict):
+        ar = orders.get("ar", 0)
+        i = orders.get("i", 0)
+        ma = orders.get("ma", 0)
+        ar_orders = [ar] if isinstance(ar, (int, float)) else list(ar) if ar else [0]
+        i_orders = [i] if isinstance(i, (int, float)) else list(i) if i else [0]
+        ma_orders = [ma] if isinstance(ma, (int, float)) else list(ma) if ma else [0]
+    # Handle list/tuple input
+    elif isinstance(orders, (list, tuple)):
+        if len(orders) >= 3:
+            ar_orders = (
+                [orders[0]] if isinstance(orders[0], (int, float)) else orders[0]
+            )
+            i_orders = [orders[1]] if isinstance(orders[1], (int, float)) else orders[1]
+            ma_orders = (
+                [orders[2]] if isinstance(orders[2], (int, float)) else orders[2]
+            )
+    elif isinstance(orders, (int, float)):
+        # Single value -> assume AR order
+        ar_orders = [orders]
+
+    return ar_orders, i_orders, ma_orders
+
+
+def _polynomial_positions(orders, i_orders, lags):
+    """Positions of the non-zero terms of a product of lag polynomials.
+
+    Mirrors R's ``ariValues`` / ``maValues`` construction in
+    ``parametersChecker()``: for each seasonal lag the polynomial occupies
+    positions ``0, 1..order`` plus, for the ARI part, ``order+1..order+d`` from
+    the differences, all scaled by that lag. The positions of the product are
+    every sum of one position per lag.
+
+    The structure is derived from the *orders* alone, never from coefficient
+    values. Probing a numeric polynomial instead is unsound: distinct
+    parameters still cancel (phi = 0.1, 0.2, 0.3 with d=2 zeroes the B**3 term),
+    which silently drops a state and builds a different model from R's.
+
+    Parameters
+    ----------
+    orders : list of int
+        AR orders (for the ARI part) or MA orders, one per lag.
+    i_orders : list of int or None
+        Differencing orders, one per lag; ``None`` for the MA part.
+    lags : list of int
+        Seasonal lags.
+
+    Returns
+    -------
+    list of int
+        Sorted non-zero polynomial positions (position 0 excluded).
+    """
+    positions = {0}
+    for k, lag in enumerate(lags):
+        order = int(orders[k])
+        values = {0} | set(range(min(1, order), order + 1))
+        if i_orders is not None and int(i_orders[k]) != 0:
+            values |= {order + d for d in range(1, int(i_orders[k]) + 1)}
+        values = {v * int(lag) for v in values}
+        positions = {p + v for p in positions for v in values}
+
+    return sorted(positions - {0})
+
+
+def _get_polynomial_indices(ar_orders, i_orders, ma_orders, lags):
+    """Build the ARIMA state structure the way R's ``parametersChecker()`` does.
+
+    Returns ``(non_zero_ari, non_zero_ma, lags_model_arima,
+    components_number_arima, initial_arima_number)``, or ``None`` when the
+    orders describe no ARIMA part at all.
+
+    Index convention follows the rest of the Python port: a polynomial position
+    ``k`` is stored as-is (R stores ``k + 1`` for its 1-based transition matrix)
+    and state indices are 0-based.
+    """
+    n = min(len(ar_orders), len(i_orders), len(ma_orders), len(lags))
+    ar_orders, i_orders = list(ar_orders[:n]), list(i_orders[:n])
+    ma_orders, lags = list(ma_orders[:n]), list(lags[:n])
+
+    ari_indices = _polynomial_positions(ar_orders, i_orders, lags)
+    ma_indices = _polynomial_positions(ma_orders, None, lags)
+
+    if not ari_indices and not ma_indices:
+        return None
+
+    lags_model_arima = sorted(set(ari_indices) | set(ma_indices))
+    state_map = {idx: i for i, idx in enumerate(lags_model_arima)}
+
+    def _pairs(indices):
+        if not indices:
+            return np.zeros((0, 2), dtype=int)
+        return np.array([[idx, state_map[idx]] for idx in indices], dtype=int)
+
+    return (
+        _pairs(ari_indices),
+        _pairs(ma_indices),
+        lags_model_arima,
+        len(lags_model_arima),
+        # The initials are based on the longest lag (see arima_initials)
+        max(lags_model_arima),
+    )
+
+
+def _check_arima(orders, validated_lags, silent=False, arma=None):
+    """
+    Check and validate ARIMA model specification.
+
+    Normalises the user-supplied ``orders`` argument (which may be a list,
+    tuple, scalar, dict or ``None``), validates compatibility with the
+    seasonal lags, and returns the canonical AR/I/MA order lists.
+
+    Parameters
+    ----------
+    orders : list, tuple, int, or None
+        ARIMA order specification
+    validated_lags : list
+        List of validated lags (must include 1 as first element for non-seasonal)
+    silent : bool, optional
+        Whether to suppress warnings
+
+    Returns
+    -------
+    dict
+        Dictionary with ARIMA model information including:
+        - non_zero_ari: Nx2 matrix [polynomial_index, state_index] (0-indexed for
+        Python)
+        - non_zero_ma: Nx2 matrix [polynomial_index, state_index] (0-indexed for Python)
+        - lags_model_arima: list of lag values for ARIMA states
+        - components_number_arima: number of ARIMA state components
+    """
+
+    # Initialize with default values - R lines 652-666
+    arima_result = {
+        "arima_model": False,
+        "ar_orders": None,
+        "i_orders": None,
+        "ma_orders": None,
+        "ar_required": False,
+        "i_required": False,
+        "ma_required": False,
+        "ar_estimate": False,
+        "ma_estimate": False,
+        "arma_parameters": None,
+        "lags_model_arima": [],
+        "non_zero_ari": np.zeros((0, 2), dtype=int),
+        "non_zero_ma": np.zeros((0, 2), dtype=int),
+        "components_number_arima": 0,
+        "components_names_arima": [],
+        "initial_arima_number": 0,
+        "select": False,
+    }
+
+    # If no orders specified, return default values
+    if orders is None:
+        return arima_result
+
+    # Parse orders into components - R lines 521-538
+    ar_orders, i_orders, ma_orders = _expand_orders(orders)
+
+    # Check for valid ARIMA component - R lines 541-542
+    if (sum(ar_orders) + sum(i_orders) + sum(ma_orders)) == 0:
+        return arima_result
+
+    arima_result["arima_model"] = True
+
+    # See if AR/I/MA is needed - R lines 544-560
+    ar_required = sum(ar_orders) > 0
+    i_required = sum(i_orders) > 0
+    ma_required = sum(ma_orders) > 0
+
+    arima_result["ar_required"] = ar_required
+    arima_result["i_required"] = i_required
+    arima_result["ma_required"] = ma_required
+
+    # Ensure lags start with 1
+    lags = list(validated_lags) if validated_lags else [1]
+    if lags[0] != 1:
+        lags = [1] + lags
+
+    # Define maxOrder and align orders with lags - R lines 563-578
+    max_order = max(len(ar_orders), len(i_orders), len(ma_orders), len(lags))
+
+    # Pad orders with zeros to match max_order
+    ar_orders = list(ar_orders) + [0] * (max_order - len(ar_orders))
+    i_orders = list(i_orders) + [0] * (max_order - len(i_orders))
+    ma_orders = list(ma_orders) + [0] * (max_order - len(ma_orders))
+
+    # If lags shorter than max_order, filter orders by non-zero lags - R lines 573-578
+    if len(lags) < max_order:
+        lags_new = list(lags) + [0] * (max_order - len(lags))
+        # Filter to keep only orders where lags are non-zero
+        ar_orders = [ar_orders[i] for i in range(len(lags_new)) if lags_new[i] != 0]
+        i_orders = [i_orders[i] for i in range(len(lags_new)) if lags_new[i] != 0]
+        ma_orders = [ma_orders[i] for i in range(len(lags_new)) if lags_new[i] != 0]
+    else:
+        # Make sure lags matches the length
+        lags = list(lags[:max_order])
+
+    # If after filtering all orders are zero, return no ARIMA - R lines 632-646
+    if all(o == 0 for o in ar_orders + i_orders + ma_orders):
+        return arima_result
+
+    arima_result["ar_orders"] = ar_orders
+    arima_result["i_orders"] = i_orders
+    arima_result["ma_orders"] = ma_orders
+
+    poly_result = _get_polynomial_indices(ar_orders, i_orders, ma_orders, lags)
+
+    if poly_result is not None:
+        (
+            non_zero_ari,
+            non_zero_ma,
+            lags_model_arima,
+            components_number_arima,
+            initial_arima_number,
+        ) = poly_result
+        # Component names - R lines 629-630
+        if components_number_arima > 1:
+            components_names_arima = [
+                f"ARIMAState{i + 1}" for i in range(components_number_arima)
+            ]
+        else:
+            components_names_arima = (
+                ["ARIMAState1"] if components_number_arima > 0 else []
+            )
+    else:
+        # Fall back to the Python algorithm when there is no ARIMA part
+        # Define the non-zero values via polynomial computation - R lines 580-616
+        ari_values = []
+        ma_values = []
+
+        def _unique_preserve_order(values):
+            seen = set()
+            out = []
+            for value in values:
+                if value not in seen:
+                    seen.add(value)
+                    out.append(value)
+            return out
+
+        for i in range(len(lags)):
+            ari_for_lag = [0]
+            if ar_orders[i] > 0:
+                ari_for_lag.extend(range(1, ar_orders[i] + 1))
+            if i_orders[i] > 0:
+                ari_for_lag.extend(
+                    range(ar_orders[i] + 1, ar_orders[i] + i_orders[i] + 1)
+                )
+            ari_for_lag = _unique_preserve_order([v * lags[i] for v in ari_for_lag])
+            ari_values.append(ari_for_lag)
+
+            ma_for_lag = [0]
+            if ma_orders[i] > 0:
+                ma_for_lag.extend(range(1, ma_orders[i] + 1))
+            ma_for_lag = _unique_preserve_order([v * lags[i] for v in ma_for_lag])
+            ma_values.append(ma_for_lag)
+
+        def expand_polynomial(values_list):
+            if len(values_list) == 0:
+                return [0]
+            dims = [len(values) for values in values_list]
+            result = np.zeros(dims, dtype=int)
+            for axis, values in enumerate(values_list):
+                shape = [1] * len(values_list)
+                shape[axis] = len(values)
+                result = result + np.asarray(values, dtype=int).reshape(shape)
+            return result.flatten(order="F").tolist()
+
+        ari_polynomial = expand_polynomial(ari_values)
+        ma_polynomial = expand_polynomial(ma_values)
+
+        def _unique_positive_in_order(values):
+            seen = set()
+            out = []
+            for value in values:
+                if value > 0 and value not in seen:
+                    seen.add(value)
+                    out.append(value)
+            return out
+
+        non_zero_ari_lags = _unique_positive_in_order(ari_polynomial)
+        non_zero_ma_lags = _unique_positive_in_order(ma_polynomial)
+
+        lags_model_arima = sorted(set(non_zero_ari_lags + non_zero_ma_lags))
+
+        if len(lags_model_arima) == 0:
+            arima_result["arima_model"] = False
+            return arima_result
+
+        ari_state_map = {lag: idx for idx, lag in enumerate(lags_model_arima)}
+        ma_state_map = ari_state_map
+
+        non_zero_ari = [[lag, ari_state_map[lag]] for lag in non_zero_ari_lags]
+        non_zero_ma = [[lag, ma_state_map[lag]] for lag in non_zero_ma_lags]
+
+        non_zero_ari = (
+            np.array(non_zero_ari, dtype=int)
+            if non_zero_ari
+            else np.zeros((0, 2), dtype=int)
+        )
+        non_zero_ma = (
+            np.array(non_zero_ma, dtype=int)
+            if non_zero_ma
+            else np.zeros((0, 2), dtype=int)
+        )
+
+        components_number_arima = len(lags_model_arima)
+        # The initials are based on the longest lag (see arima_initials)
+        initial_arima_number = max(lags_model_arima) if lags_model_arima else 0
+        # Component names
+        if components_number_arima > 1:
+            components_names_arima = [
+                f"ARIMAState{i + 1}" for i in range(components_number_arima)
+            ]
+        else:
+            components_names_arima = (
+                ["ARIMAState1"] if components_number_arima > 0 else []
+            )
+
+    # Update result
+    arima_result["non_zero_ari"] = non_zero_ari
+    arima_result["non_zero_ma"] = non_zero_ma
+    arima_result["lags_model_arima"] = lags_model_arima
+    arima_result["components_number_arima"] = components_number_arima
+    arima_result["components_names_arima"] = components_names_arima
+    arima_result["initial_arima_number"] = initial_arima_number
+
+    # Set estimation flags - always estimate parameters if they are required
+    arima_result["ar_estimate"] = ar_required
+    arima_result["ma_estimate"] = ma_required
+
+    # The provided ARMA parameters, as R's parametersChecker: lag by lag, the AR of
+    # the lag, then its MA, of those provided only, which is the order in which the
+    # polynomialiser reads them. A wrong number of them switches to estimation
+    arma_parameters: list = []
+    if arma is not None and isinstance(arma, dict):
+        fixed = {}
+        for kind, orders, required in (
+            ("ar", ar_orders, ar_required),
+            ("ma", ma_orders, ma_required),
+        ):
+            values = arma.get(kind)
+            if values is None or not required:
+                continue
+            values = [values] if isinstance(values, (int, float)) else list(values)
+            if len(values) != sum(orders):
+                warnings.warn(
+                    f"The number of provided {kind.upper()} parameters is "
+                    f"{len(values)} while I need {sum(orders)}. "
+                    "Switching to estimation.",
+                    stacklevel=2,
+                )
+                continue
+            fixed[kind] = iter(values)
+            arima_result[f"{kind}_estimate"] = False
+        for ar_order, ma_order in zip(ar_orders, ma_orders):
+            if "ar" in fixed:
+                arma_parameters += [next(fixed["ar"]) for _ in range(ar_order)]
+            if "ma" in fixed:
+                arma_parameters += [next(fixed["ma"]) for _ in range(ma_order)]
+    arima_result["arma_parameters"] = arma_parameters if arma_parameters else None
+
+    return arima_result

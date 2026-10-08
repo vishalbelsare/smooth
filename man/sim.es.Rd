@@ -78,6 +78,7 @@ parameters used in the simulation.
 \item \code{phi} - Value of damping parameter used in time series generation.
 \item \code{initial} - Vector (or matrix) of initial values.
 \item \code{initialSeason} - Vector (or matrix) of initial seasonal coefficients.
+\item \code{profile} - The final profile produced in the simulation.
 \item \code{probability} - vector of probabilities used in the simulation.
 \item \code{intermittent} - type of the intermittent model used.
 \item \code{residuals} - Error terms used in the simulation. Either vector or matrix,
@@ -118,7 +119,7 @@ plot(ETSANN$states)
 
 # Create 60 observations of monthly data using MAM model
 # with errors from uniform distribution
-ETSMAM <- sim.es(model="MAM",persistence=c(0.3,0.2,0.1),initial=c(2000,50),
+ETSMAM <- sim.es(model="MAdM",persistence=c(0.3,0.2,0.1),initial=c(2000,50),
            phi=0.8,frequency=12,obs=60,randomizer="runif",min=-0.5,max=0.5)
 
 # Create 80 observations of quarterly data using MMM model
@@ -138,6 +139,8 @@ iETSMNN <- sim.es("MNN",obs=50,frequency=12,persistence=0.2,initial=4,
 }
 \references{
 \itemize{
+\item Svetunkov, I., 2023. Smooth Forecasting with the Smooth Package in R. arXiv.
+\doi{10.48550/arXiv.2301.01790}
 \item Snyder, R. D., 1985. Recursive Estimation of Dynamic Linear Models.
 Journal of the Royal Statistical Society, Series B (Methodological) 47 (2), 272-276.
 \item Hyndman, R.J., Koehler, A.B., Ord, J.K., and Snyder, R.D. (2008)
@@ -149,7 +152,7 @@ Springer-Verlag. \doi{10.1007/978-3-540-71918-2}.
 \code{\link[smooth]{es}, \link[stats]{ts}, \link[stats]{Distributions}}
 }
 \author{
-Ivan Svetunkov, \email{ivan@svetunkov.ru}
+Ivan Svetunkov, \email{ivan@svetunkov.com}
 }
 \keyword{models}
 \keyword{nonlinear}

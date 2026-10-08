@@ -1,0 +1,333 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Repository Overview
+
+The **smooth** package implements forecasting using state space models in R. The centerpiece is ADAM (Augmented Dynamic Adaptive Model), which combines ETS (Error, Trend, Seasonal) models, ARIMA, and regression in a unified Single Source of Error framework. The package is production-ready, available on CRAN, and includes both R and C++ implementations for performance.
+
+A Python implementation is under development in the `python/` subdirectory (see `python/CLAUDE.md` for Python-specific guidance).
+
+## Claude instructions
+Do not create summaries of what you do. Do not create additional files/documents if not explicitly asked to.
+
+**Always ask before introducing a new function** (exported or internal, in R, Python or C++), and say what it would do and where it would live. Look first for an existing one that does the job, in this repository and in its dependencies (e.g. greybox for anything about distributions: a change to a density belongs in greybox, not as a patch in smooth).
+
+**Never expose the Claude session URL (or any session identifier) in commits.** Do not add a `Claude-Session:` trailer, a `https://claude.ai/code/session_...` link, or any equivalent session reference to commit messages, PR descriptions, code, or files. These leak a private session handle and are a security concern. Commit messages must contain only the change description (a `Co-Authored-By:` line is fine if attribution is wanted); nothing that points back to a Claude session.
+
+**Never dismiss a failing test.** Do not write off a failure as "pre-existing", "stale reference", "tolerance too tight", "flat-surface optimiser-floor effect", or "unrelated to my changes". A failing test is a real signal that something is wrong, even when the diff is tiny or the immediate task did not touch the failing code path. Report every failure clearly with the actual numbers, and if the current task cannot accommodate fixing them, log them as a follow-up and revisit them once the current task is done. Comparing failure sets across commits ("the same tests failed before") does not make the failures acceptable — it only narrows where to look. The goal is zero failing tests, not unchanged failing-test counts.
+
+Never create files or folders in the repository root. The root holds R package files only (DESCRIPTION, NAMESPACE, R/, src/, man/, tests/, vignettes/, ...) and must stay clean for CRAN. Put Python work under `python/`, and never let Python build artifacts (`.so`, `.venv`, `build/`, or symlinks into a venv) leak above the `python/` boundary — `R CMD build` follows symlinks during the source copy and dangling links abort the build.
+
+For Python, the local environment must always be `python/.venv`. Do not create venvs at the repo root, in `python/venv`, or anywhere else.
+
+**Always run linting (ruff check, ruff format) and mypy after every Python code change.** Whenever anything under `python/src/` is edited, run all three checks from the `python/` directory before considering the task complete:
+
+```bash
+cd python/
+.venv/bin/ruff check src/
+.venv/bin/ruff format src/
+.venv/bin/mypy src/smooth
+```
+
+All three must pass with zero errors. This applies to every Python edit — small or large, signature change or one-line tweak. See `python/CLAUDE.md` for the full rationale.
+
+When coding, use the best practice, focusing on the following principles:
+
+- Write as few lines as possible.
+- Use appropriate naming conventions.
+- Segment blocks of code in the same section into paragraphs.
+- Use indentation to mark the beginning and end of control structures. Specify the code between them.
+- Don’t use lengthy functions. Ideally, a single function should carry out a single task.
+- Use the DRY (Don’t Repeat Yourself) principle. Automate repetitive tasks whenever necessary. The same piece of code should not be repeated in the script.
+- Avoid Deep Nesting. Too many nesting levels make code harder to read and follow.
+- Avoid long lines. It is easier for humans to read blocks of lines that are horizontally short and vertically long.
+
+When writing R code specifically:
+- Always use explicit `return(object)` at the end of every function.
+- Always wrap `if`, `for`, and `while` bodies in `{}`, even for single-line bodies: `if (...) { ... }`.
+- Never expose internal (non-exported) functions via roxygen. Do not give them a roxygen title/description block or an `@export` — a title/description makes `roxygen2::roxygenise()` generate a `man/*.Rd` page for them, which leaks the helper into the documentation. Internal helpers get no roxygen at all: use plain `#` comments for the explanation, matching the other internal helpers (e.g. `adam_checkOptimizer`). `#' @keywords internal` is pointless on a block without a title (no Rd page is generated anyway) and must not be added.
+- Export only the user-facing functions and their S3 methods (for a model, e.g. `tbats()` and `forecast.adamTBATS()`); every helper stays internal: no `@export`, no NAMESPACE entry, no Rd page. Check the user's view with `library(smooth)` or `pkgload::load_all(export_all=FALSE)`: the default `load_all()` attaches all the internal functions, so they show up in the console's completion although the installed package does not expose them.
+
+
+## R Package Development
+
+### Build and Test Commands
+
+```bash
+# Build package from source
+R CMD build .
+
+# Check package (CRAN standards)
+R CMD check smooth_*.tar.gz
+
+# Install locally for testing
+R CMD INSTALL .
+
+# Or use devtools in R session
+R -e "devtools::load_all()"
+R -e "devtools::test()"
+R -e "devtools::check()"
+
+# Run specific tests
+R -e "testthat::test_file('tests/testthat/test_adam.R')"
+```
+
+### Testing
+
+Test files are in `tests/testthat/`: `test_adam.R`, `test_autoadam.R`,
+`test_es.R`, `test_ces.R`, `test_ssarima.R`, `test_sparma.R`, `test_gum.R`,
+`test_sma.R`, `test_om.R`, `test_omg.R`, `test_oes.R`, `test_simulate.R`,
+`test_df.R` (degrees of freedom), `test_gradient.R` (`initial="gradient"`),
+`test_vcov_opg.R` (OPG covariance), `test_backcastHead.R` (the head of backcasting),
+`test_tbats.R`.
+
+Run all tests with: `R -e "devtools::test()"`
+
+### CI/CD
+
+GitHub Actions workflows:
+- `.github/workflows/test.yml` - R-CMD-check on macOS, Windows, Ubuntu
+- `.github/workflows/rhub.yaml` - R-hub checks for CRAN submission
+- `.github/workflows/revdep.yaml` - reverse-dependency checks
+- `.github/workflows/python_ci.yml` - ruff + mypy, then cibuildwheel builds
+  **and runs the pytest suite** on Linux (3.11-3.14), macOS and Windows.
+  Triggered by pull requests touching `python/**`, and by workflow_dispatch.
+- `.github/workflows/build-release-wheels.yml`, `release.yml`,
+  `publish-testpypi.yml` - wheel building and publishing
+
+### Documentation
+
+Build documentation: `R -e "devtools::document()"`
+
+Vignettes (in `vignettes/`):
+- `smooth.Rmd` - package overview
+- `adam.Rmd` - ADAM model guide
+- `es.Rmd`, `ces.Rmd`, `gum.Rmd` - Specific model guides
+- `ssarima.Rmd`, `sma.Rmd` - ARIMA and moving average guides
+- `simulate.Rmd` - Simulation functions
+- `oes.Rmd`, `om.Rmd` - Occurrence models for intermittent demand
+
+Build vignettes: `R -e "devtools::build_vignettes()"`
+
+## Architecture
+
+### State Space Model Framework
+
+All models use a unified state space representation:
+
+```
+Observation equation: y_t = o_t * (w(v_{t-l}) + h(x_t, a_{t-1}) + r(v_{t-l}) * ε_t)
+State equation: v_t = f(v_{t-l}, a_{t-1}) + g(v_{t-l}, a_{t-1}, x_t) * ε_t
+```
+
+Where:
+- `v_t` - State vector (levels, trends, seasonal components, ARIMA states)
+- `l` - Vector of lags
+- `w(.)` - Measurement function
+- `f(.)` - Transition function
+- `g(.)` - Persistence function
+- `ε_t` - Error term (various distributions supported)
+
+### Core Model Types
+
+1. **ADAM (`R/adam.R`)** - Main unified model combining:
+   - ETS components (error, trend, seasonality)
+   - ARIMA components (AR, I, MA orders)
+   - Regression with exogenous variables
+   - Multiple seasonal patterns
+
+2. **ETS models** (`R/adam-es.R`) - Exponential Smoothing variants
+
+3. **ARIMA models** (`R/adam-ssarima.R`, `R/adam-msarima.R`, `R/automsarima.R`) - State-Space and Multiple Seasonal ARIMA
+
+4. **CES** (`R/adam-ces.R`) - Complex Exponential Smoothing
+
+5. **GUM** (`R/adam-gum.R`) - Generalised Uniform Model
+
+6. **Occurrence models** (`R/om.R`, `R/omg.R`, `R/om-oes.R`) - For intermittent demand
+
+7. **Scale model** (`R/sm.R`) - Dynamic model for the scale of the error term
+
+8. **TBATS** (`R/adam-tbats.R`) - ETS level and trend, trigonometric seasonality and ARMA in the Box-Cox space; the harmonics sit in the C++ `nArima` slot (see `python/docs/TBATS_PLAN.md`)
+
+### R and C++ Integration
+
+Critical performance functions are implemented in C++ (in `src/`):
+
+- `adamGeneral.cpp` - Core ADAM fitting/forecasting/simulation (uses `headers/adamCore.h`)
+- `ssGeneral.cpp` - General state space operations (uses `headers/ssGeneral.h`, `headers/ssOccurrence.h`)
+- `hessianCpp.cpp` - Finite-difference Hessian (`headers/hessianCore.h`), shared with the Python build
+- `olsWrap.cpp` - Pivoted-QR least squares (`headers/olsCore.h`), shared with the Python build
+- `eigenCalc.cpp` - Eigenvalue bounds for the admissible-bounds checks
+- `matrixPowerWrap.cpp` - Matrix power operations for variance calculations
+
+The R code (in `R/`) provides:
+- User-facing API and parameter validation
+- Model selection logic
+- Information criteria calculations
+- Plotting and diagnostics
+- Integration with R ecosystem (formula interface, time series objects)
+
+### Key Function Flow in ADAM
+
+1. **Input validation** (`R/adamGeneral.R::parametersChecker()`) - Validates all user inputs, processes data, handles formula interface
+
+2. **Model architecture setup** (`architector()` in R code) - Determines components, lags, seasonal structure
+
+3. **Model creation** (`creator()` in R code) - Builds state-space matrices (measurement, transition, persistence)
+
+4. **Parameter estimation** (`estimator()` in R code) - Calls C++ optimization routines:
+   - Uses `nloptr` for optimization
+   - C++ `adamFitter()` computes likelihood/errors during optimization
+   - Returns fitted parameters, states, errors
+
+5. **Model selection** (if `model="ZZZ"` or similar) - Tests multiple models, selects by IC
+
+6. **Forecasting** (`forecaster()` in R code) - Calls C++ `adamForecaster()` for point forecasts and intervals
+
+## Important Implementation Details
+
+### Distribution Support
+
+Error distributions (via `distribution` parameter):
+- `dnorm` - Normal (default for additive)
+- `dlaplace` - Laplace
+- `ds` - S distribution
+- `dgnorm` - Generalised Normal
+- `dalaplace` - Asymmetric Laplace (R only)
+- `dlnorm` - Log-Normal
+- `dgamma` - Gamma (default for multiplicative)
+- `dinvgauss` - Inverse Gaussian
+
+The Python `ADAM` accepts the seven that are not marked R-only. `dllaplace`,
+`dls` and `dlgnorm` appear in some internal switches as placeholders but are
+rejected by `adam()`'s own `match.arg` in R and are not implemented in either
+language, so they are not options.
+
+Distribution selection affects likelihood calculation and prediction intervals.
+
+### Parameter Constraints
+
+ETS smoothing parameters must satisfy:
+- 0 ≤ α, β, γ ≤ 1 (persistence parameters)
+- β ≤ α (trend constraint)
+- γ ≤ 1 - α (seasonal constraint)
+- 0 ≤ φ ≤ 1 (damping parameter)
+
+Violations return penalty during optimization (1e100).
+
+### Model Notation
+
+ETS models use three-letter codes:
+- First letter: Error type (A=Additive, M=Multiplicative)
+- Second: Trend type (N=None, A=Additive, Ad=Additive damped, M=Multiplicative, Md=Multiplicative damped)
+- Third: Seasonal type (N=None, A=Additive, M=Multiplicative)
+
+Example: `model="AAdN"` = Additive error, Additive damped trend, No seasonality
+
+ARIMA specified via `orders` parameter: `list(ar=c(p1,p2,...), i=c(d1,d2,...), ma=c(q1,q2,...))`
+
+### Lags and Multiple Seasonality
+
+The `lags` parameter specifies seasonal periods: `lags=c(1,12)` for monthly data with annual seasonality.
+- First lag typically = 1 (for level/trend)
+- Additional lags for seasonal components
+- Multiple seasonal patterns supported (e.g., hourly data with daily/weekly patterns)
+
+### C++ Matrix Requirements
+
+When modifying C++ code, matrices must be in Fortran (column-major) order for Armadillo compatibility. The R code handles conversion between R matrices and C++ via RcppArmadillo.
+
+## Common Development Patterns
+
+### Adding New Distribution
+
+1. Add distribution to list in `R/adam.R` documentation
+2. Implement log-likelihood in C++ (`adamCore.h`)
+3. Add density/quantile functions for intervals
+4. Update distribution selection logic in `parametersChecker()`
+
+### Modifying State Space Structure
+
+1. Update `creator()` for matrix construction
+2. Modify C++ `adamFitter()` if transition logic changes
+3. Ensure `filler()` correctly populates parameter vector
+4. Update `forecaster()` for prediction with new structure
+
+### Adding Model Variants
+
+Follow existing pattern (e.g., `R/adam-es.R`):
+1. Create wrapper function with specific defaults
+2. Call main `adam()` with appropriate parameters
+3. Add tests in `tests/testthat/`
+4. Document with roxygen2 comments
+
+## R / Python parity discipline
+
+The Python port is a *numerical* port, not merely a functional one. Two rules follow.
+
+**A difference in results is never "optimiser noise".** Both languages run the same
+optimiser (NLopt), the same loss and the same initialisation, so a materially different
+optimum is impossible as an optimiser artefact. Explanations of the form "the optimiser
+wandered", "the maxeval budget differed" or "it is a flat surface" are ruled out by
+construction. A real gap means either the initialisation differs (seed, `B0`, bounds,
+profile tables) or the model being fitted differs (state structure, lags, matrices).
+
+The diagnostic that settles it in one step: evaluate the likelihood in *both* languages
+at *identical* parameter values. Equal there means the seed differs; different there
+means the two are not fitting the same model, and the next move is to print
+`lagsModelAll` / `persistence` / component counts side by side.
+
+**Distributions come from greybox, never re-derived.** `greybox` (Python) supplies
+`dnorm`/`dlaplace`/`ds`/`dgnorm`/`dalaplace`/`dlnorm`/`dllaplace`/`dls`/`dlgnorm`/
+`dinvgauss`/`dgamma` and their `p`/`q`/`r` counterparts — the same functions R's `smooth`
+calls. Do not re-implement a density or quantile against `scipy`: only the
+*parameterisation* should be spelled out on either side. The one exception is the `r*`
+draws, which keep `scipy` because greybox's take no `random_state` and seeded
+reproducibility matters.
+
+## Dependencies
+
+Key R packages:
+- **Rcpp, RcppArmadillo** - C++ integration (required)
+- **greybox** - Distributions, information criteria, utilities (required)
+- **nloptr** - Nonlinear optimization (required)
+- **pracma** - Mathematical functions (required)
+- **zoo** - Time series handling (required)
+- **testthat** - Testing (suggested)
+- **numDeriv** - Numerical derivatives for diagnostics (suggested)
+
+C++ dependencies:
+- Armadillo library (via RcppArmadillo)
+- C++11 or later
+
+**Pending version bumps (greybox).** R's greybox 2.0.10 and Python's 1.0.9 compute the
+log-densities of `dlaplace`, `ds` and `dgnorm` analytically and identically in both
+languages, which smooth's R/Python parity relies on (`tbats()` with `distribution="auto"`
+selects with `dgnorm`). Once they are released, raise the minimum versions: `greybox>=1.0.9`
+in `python/pyproject.toml` as soon as 1.0.9 is on PyPI, and `greybox (>= 2.0.10)` in
+`DESCRIPTION` with the next smooth release after 2.0.10 is on CRAN. Remove this note when
+both are done.
+
+## Mac OS Specific Notes
+
+Mac users may need gfortran libraries for Rcpp/RcppArmadillo compilation. See: http://www.thecoatlessprofessor.com/programming/rcpp-rcpparmadillo-and-os-x-mavericks-lgfortran-and-lquadmath-error/
+
+If functions stop working after package upgrade, restart R or completely remove and reinstall the package (C++ functions can be cached).
+
+## Python Translation
+
+A Python implementation is under development in `python/` subdirectory. The Python version:
+- Directly translates R algorithms to Python/NumPy
+- Uses scikit-learn-style API (fit/predict methods)
+- Reimplements core logic in Python with C++ extensions via pybind11
+- See `python/CLAUDE.md` for Python-specific development guidelines
+
+When modifying R code that affects algorithms, check if corresponding Python code in `python/src/smooth/adam_general/core/` needs updates to maintain equivalence.
+
+## Git Workflow
+
+- **Main branch**: `master` — both the R package and the Python port are developed here.
+- The `Python` branch is historical; it is no longer the target for new work.
+- R and Python changes that mirror each other belong in the same commit where practical, so the two stay in step.

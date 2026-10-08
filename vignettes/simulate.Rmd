@@ -24,6 +24,7 @@ require(smooth)
 ## Exponential Smoothing
 We start with an Exponential Smoothing. For example, monthly data generated from ETS(A,N,N), 120 observations:
 ```{r sim_es_ANN}
+set.seed(41)
 ourSimulation <- sim.es("ANN", frequency=12, obs=120)
 ```
 
@@ -104,7 +105,8 @@ plot(ourSimulation)
 
 If we want to provide some specific parameters, then we should follow the structure: from lower lag to lag from lower order to higher order. For example, the same model with predefined MA terms will be:
 ```{r sim_ssarima_(0,1,1)(1,0,2)_12_drift_predefined}
-ourSimulation <- sim.ssarima(orders=list(ar=c(0,1),i=c(1,0),ma=c(1,2)), lags=c(1,12), constant=TRUE, MA=c(0.5,0.2,0.3), obs=120)
+ourSimulation <- sim.ssarima(orders=list(ar=c(0,1),i=c(1,0),ma=c(1,2)),
+                             lags=c(1,12), constant=TRUE, arma=list(ma=c(0.5,0.2,0.3)), obs=120)
 ourSimulation
 ```
 
@@ -164,13 +166,14 @@ ourSimulation
 
 We can produce one out of three possible seasonal CES models. For example, Let's generate data from "Simple CES", which does not have a level:
 ```{r sim_ces_(s)}
+set.seed(41)
 ourSimulation <- sim.ces("s",frequency=24, obs=240, nsim=1)
 plot(ourSimulation)
 ```
 
 Now let's be more creative and mess around with the generated initial values of the previous model. We will make some of them equal to zero and regenerate the data:
 ```{r sim_ces_(s)_messing_arround}
-ourSimulation$initial[c(1:5,20:24),] <- 0
+ourSimulation$initial[,c(1:5,20:24)] <- 0
 ourSimulation <- sim.ces("s",frequency=24, obs=120, nsim=1, initial=ourSimulation$initial, randomizer="rt", df=4)
 plot(ourSimulation)
 ```
@@ -205,11 +208,11 @@ plot(ourData)
 par(mfcol=c(1,1))
 ```
 
-## Generalised Exponential Smoothing
+## Generalised Univariate Model
 There is also `sim.gum()` function in the package that generates data from GUM model. If we do not provide specific parameters, then they will be automatically generated. This model is very flexible and taking that there is a lot of parameters to set, in general it is not advised to leave such parameters as `measurement`, `transition` and `persistence` blank. The good practice is to simulate data from a fitted model:
 ```{r simulate_smooth_gum}
 x <- ts(100 + rnorm(120,0,5) + rep(runif(12,-50,50),10)*rep(c(1:10),each=12) ,frequency=12)
-ourModel <- auto.gum(x, h=18, silent=TRUE)
+ourModel <- auto.gum(x, h=18, silent=TRUE, initial="backcasting")
 ourData <- simulate(ourModel, nsim=50)
 ```
 

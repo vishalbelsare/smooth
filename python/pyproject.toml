@@ -1,0 +1,221 @@
+[build-system]
+requires = ["scikit-build-core>=0.3.3", "pybind11", "numpy>=1.14"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "smooth"
+version = "1.2.0"
+description = "Forecasting and time series analysis with single-source-of-error state-space models (ADAM, ETS, ARIMA, occurrence, SMA)"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Ivan Svetunkov" },
+    { name = "Filotas Theodosiou" },
+    { name = "Leonidas Tsaprounis" },
+]
+maintainers = [
+    { name = "Ivan Svetunkov", email = "ivan@svetunkov.com" },
+]
+license = { file = "LICENSE" }
+keywords = [
+    "forecasting",
+    "time-series",
+    "state-space",
+    "exponential-smoothing",
+    "ETS",
+    "ARIMA",
+    "ADAM",
+    "occurrence-model",
+    "intermittent-demand",
+    "moving-average",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: GNU Lesser General Public License v2 or later (LGPLv2+)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
+dependencies = [
+    "pybind11[global]>=2.6.0",
+    "numpy>=1.14",
+    "pandas>=2.0",
+    "nlopt",
+    "scipy>=1.11.0,<1.19.0",
+    "statsmodels",
+    "greybox>=1.0.8",
+    "matplotlib",
+]
+
+[project.urls]
+Homepage      = "https://openforecast.org/"
+Documentation = "https://openforecast.org/smooth-py/"
+Repository    = "https://github.com/openforecast-org/smooth"
+Issues        = "https://github.com/openforecast-org/smooth/issues"
+Changelog     = "https://github.com/openforecast-org/smooth/blob/Python/python/NEWS.md"
+"R package"   = "https://cran.r-project.org/package=smooth"
+ORCID         = "https://orcid.org/0000-0001-7826-0281"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["smooth*"]
+exclude = ["tests*", "tests.*", "*.tests", "*.tests.*"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+    "mypy",
+    "pre-commit",
+    "ipykernel",
+    "tqdm",
+    "ipython>=8.0.0"
+]
+r = ["rpy2>=3.5.0"]
+parallel = ["joblib>=1.3"]
+docs = [
+    "sphinx>=7.0",
+    "sphinx-rtd-theme>=2.0",
+    "sphinx-autodoc-typehints>=2.0",
+]
+
+[tool.scikit-build]
+# wheel.expand-macos-universal-tags = true
+build-dir = "build"
+logging.level = "INFO"
+ninja.make-fallback = true
+ninja.version = ">=1.5.0"
+# Update these version specifications with proper format
+cmake.version = ">=3.25.0"
+cmake.build-type = "Release"
+build.verbose = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "-ra",
+    "-m", "not r_comparison and not r_parity",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "r_comparison: tests that compare Python output against R reference data (skipped by default; run with -m r_comparison)",
+    "r_parity: cross-language numerical-equivalence tests requiring R+smooth+pkgload (run with -m r_parity)",
+]
+
+[tool.coverage.run]
+source = ["src/smooth"]
+omit = ["tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]
+
+[tool.ruff]
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "*.ipynb",
+    # TODO: re-include tests after fixing all linting errors.
+    "tests/"
+]
+
+# Same as Black.
+line-length = 88
+indent-width = 4
+
+# Assume Python 3.8
+target-version = "py38"
+
+[tool.ruff.lint]
+# Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
+# Unlike Flake8, Ruff doesn't enable pycodestyle warnings (`W`) or
+# McCabe complexity (`C901`) by default.
+# Rules for ruff are found here: https://docs.astral.sh/ruff/rules/
+select = [
+    "E4",
+    "E7",
+    "E9",
+    "E501",
+    "F",
+    "I",    # isort rules
+    "N",    # PEP-8 naming rules
+]
+ignore = [
+    # uppercase names are used for matrices
+    "N803", # allow uppercase argument names
+    "N806", # allow uppercase variable names
+]
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.format]
+# Like Black, use double quotes for strings.
+quote-style = "double"
+
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
+
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
+
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"
+
+[dependency-groups]
+dev = [
+    "pytest-cov>=7.0.0",
+]
+
+[tool.mypy]
+# Type-check the package source. Third-party deps (nlopt, greybox, statsmodels,
+# scipy, …) ship without stubs, so missing imports are ignored.
+files = ["src/smooth"]
+ignore_missing_imports = true

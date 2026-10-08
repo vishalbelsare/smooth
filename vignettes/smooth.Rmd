@@ -14,7 +14,7 @@ knitr::opts_chunk$set(fig.width=6, fig.height=4, fig.path='Figs/', fig.show='hol
                       warning=FALSE, message=FALSE)
 ```
 
-This vignette explains how to use functions in `smooth` package, what they produce, what each field in outputs and what returned values mean. Underlying statistical models are not discussed here, but if you want to know more about them, then there is a document "[Statistical models underlying functions of 'smooth' package for R](https://github.com/config-i1/smooth/blob/master/vignettes/smooth-Documentation.pdf)". Some of the features of the package are also explained in my [blog](https://forecasting.svetunkov.ru/en/tag/smooth/).
+This vignette explains how to use functions in `smooth` package, what they produce, what each field in outputs and what returned values mean. Underlying statistical models are not discussed here, but if you want to know more about them, then there is a working paper "[Smooth forecasting with the smooth package in R](https://doi.org/10.48550/arXiv.2301.01790)". Some of the features of the package are also explained in my [blog](https://openforecast.org/category/r-en/smooth/). Finally, I have a monograph [Forecasting and Analytics with the Augmented Dynamic Adaptive Model (ADAM)](https://openforecast.org/adam/), which explains the model underlying the majority of forecasting functions in the package.
 
 The package includes the following functions:
 
@@ -24,6 +24,7 @@ The package includes the following functions:
 3. [ces() - Complex Exponential Smoothing](ces.html);
 4. [gum() - Generalised Univariate Model](gum.html);
 5. [sma() - Simple Moving Average in state-space form](sma.html);
+5. [tbats() - Trigonometric Box-Cox ARMA Trend Seasonal model](tbats.html), TBATS in the ADAM framework, for long and multiple seasonal periods;
 6. [Simulate functions of the package](simulate.html).
 7. `smoothCombine()` - function that combines forecasts of the main univariate functions of smooth package based on information criteria.
 8. [oes() - Occurrence part of iETS model](oes.html) -- function that estimates probability of occurrence of variable using one of the following model types: 1. Fixed probability; 2. Odds ratio probability; 3. Inverse odds ratio probability; 4. Direct probability; 5. General. It can also select the most appropriate model among these five. The model produced by `oes()` can then be used in any forecasting function as input variable for `occurrence` parameter. This is the new function introduced in smooth v2.5.0, substituting the old `iss()` function.

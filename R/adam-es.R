@@ -23,29 +23,29 @@
 #' \code{transitionX} matrix and \eqn{g_{X}} is the \code{persistenceX} matrix.
 #' Finally, \eqn{\epsilon_{t}} is the error term.
 #'
-#' For the details see Hyndman et al.(2008).
+#' For the details see Svetunkov (2023) or Hyndman et al.(2008).
 #'
 #' For some more information about the model and its implementation, see the
 #' vignette: \code{vignette("es","smooth")}.
 #'
 #' Also, there are posts about the functions of the package smooth on the
 #' website of Ivan Svetunkov:
-#' \url{https://forecasting.svetunkov.ru/en/tag/smooth/} - they explain the
+#' \url{https://openforecast.org/category/r-en/smooth/} - they explain the
 #' underlying models and how to use the functions.
 #'
 #'
 #' @template ssBasicParam
 #' @template ssAdvancedParam
 #' @template ssXregParam
-#' @template ssIntervals
 #' @template ssPersistenceParam
 #' @template ssAuthor
 #' @template ssKeywords
 #'
+#' @template ADAMInitial
+#'
 #' @template ssGeneralRef
-#' @template ssIntermittentRef
 #' @template ssETSRef
-#' @template ssIntervalsRef
+#' @template ssADAMRef
 #'
 #' @param model The type of ETS model. The first letter stands for the type of
 #' the error term ("A" or "M"), the second (and sometimes the third as well) is for
@@ -83,20 +83,21 @@
 #' \code{lags=c(1,1,12)}. However, the function will also accept \code{lags=c(12)},
 #' assuming that the lags 1 were dropped.
 #' @param phi Value of damping parameter. If \code{NULL} then it is estimated.
-#' @param initial Can be either character or a vector of initial states.
-#' If it is character, then it can be \code{"optimal"}, meaning that all initial
-#' states are optimised, or \code{"backcasting"}, meaning that the initials of
-#' dynamic part of the model are produced using backcasting procedure (advised
-#' for data with high frequency). In the latter case, the parameters of the
-#' explanatory variables are optimised. This is recommended for ETSX
-#' model. Alternatively, you can set \code{initial="complete"} backcasting,
-#' which means that all states (including explanatory variables) are initialised
-#' via backcasting. You can also provide a vector with values for level and trend
-#' components.
-#' If character, then \code{initialSeason} will be estimated in the way defined
-#' by \code{initial}.
 #' @param initialSeason Vector of initial values for seasonal components. If
 #' \code{NULL}, they are estimated during optimisation.
+#' @param bounds What type of bounds to use in the model estimation. The first
+#' letter can be used instead of the whole word. \code{"usual"} implies restrictions on
+#' the smoothing parameter, guaranteeing that the exponential smoothing behaves
+#' as an averaging model. \code{"admissible"} guarantee that the model is stable.
+#' @param smoother The smoother used by the \link[smooth]{msdecompose} function to
+#' obtain the initial states - the level and the trend, together with the initial
+#' seasonal indices (and the seasonal profiles in the case of multiple seasonal
+#' models). \code{smoother="default"} (the default) resolves to \code{"ma"} (the
+#' centred moving average) when \code{initial="optimal"} and to \code{"global"}
+#' (a global model fitted to the data) for every other initialisation method. The
+#' other values \code{"ma"}, \code{"lowess"} (\link[stats]{lowess}), \code{"supsmu"}
+#' (\link[stats]{supsmu}) and \code{"global"} force the respective smoother
+#' irrespective of the initialisation.
 #' @param ...  Other non-documented parameters. For example \code{FI=TRUE} will
 #' make the function also produce Fisher Information matrix, which then can be
 #' used to calculated variances of smoothing parameters and initial states of
@@ -229,13 +230,13 @@
 #'
 #' @rdname es
 #' @export
-es <- function(y, model="ZZZ", lags=c(frequency(y)), persistence=NULL, phi=NULL,
-               initial=c("optimal","backcasting","complete"), initialSeason=NULL, ic=c("AICc","AIC","BIC","BICc"),
-               loss=c("likelihood","MSE","MAE","HAM","MSEh","TMSE","GTMSE","MSCE"),
-               h=10, holdout=FALSE,
-               # cumulative=FALSE,
-               # interval=c("none","parametric","likelihood","semiparametric","nonparametric"), level=0.95,
+es <- function(y, model="ZXZ", lags=c(frequency(y)), persistence=NULL, phi=NULL,
+               initial=c("backcasting","optimal","two-stage","complete","gradient"),initialSeason=NULL,
+               ic=c("AICc","AIC","BIC","BICc"),
+               loss=c("likelihood","MSE","MAE","HAM","MSEh","TMSE","GTMSE","MSCE","GPL"),
+               h=0, holdout=FALSE,
                bounds=c("usual","admissible","none"),
+               smoother=c("default","ma","lowess","supsmu","global"),
                silent=TRUE,
                xreg=NULL, regressors=c("use","select"), initialX=NULL, ...){
     # Copyright (C) 2022 - Inf  Ivan Svetunkov
@@ -258,10 +259,11 @@ es <- function(y, model="ZZZ", lags=c(frequency(y)), persistence=NULL, phi=NULL,
     }
 
     # If a previous model provided as a model, write down the variables
-    if(is.smooth(model) | is.smooth.sim(model)){
+    if(is.smooth(model) || is.smooth.sim(model)){
         if(smoothType(model)!="ETS"){
             stop("The provided model is not ETS.",call.=FALSE);
         }
+
         # If this is the simulated data, extract the parameters
         if(is.smooth.sim(model) & !is.null(dim(model$data))){
             warning("The provided model has several submodels. Choosing a random one.",call.=FALSE);
@@ -273,31 +275,30 @@ es <- function(y, model="ZZZ", lags=c(frequency(y)), persistence=NULL, phi=NULL,
         else{
             persistence <- model$persistence;
             initial <- model$initial;
-            initialSeason <- model$initialSeason;
+            # initialSeason <- model$initialSeason;
             if(any(model$probability!=1)){
                 occurrence <- "a";
             }
         }
         phi <- model$phi;
-        if(is.null(xreg)){
-            xreg <- model$xreg;
-        }
-        else{
-            if(is.null(model$xreg)){
-                xreg <- NULL;
-            }
-            else{
-                if(ncol(xreg)!=ncol(model$xreg)){
-                    xreg <- xreg[,colnames(model$xreg)];
-                }
-            }
+        if(is.null(xreg) && is.list(model$initial) && !is.null(model$initial$xreg)){
+            # Exctract xreg
+            xreg <- model$data[,all.vars(model$formula)[-1]];
         }
 
-        initialX <- model$initialX;
+        # initialX <- model$initialX;
+
+        # if(is.adam(model)){
+        #     y <- model$data;
+        # }
+        # else{
+        #     y <- model$y;
+        # }
+
         model <- modelType(model);
-        if(any(unlist(gregexpr("C",model))!=-1)){
-            initial <- "o";
-        }
+        # if(any(unlist(gregexpr("C",model))!=-1)){
+        #     initial <- "o";
+        # }
     }
     else if(inherits(model,"ets")){
         # Extract smoothing parameters
@@ -353,8 +354,12 @@ es <- function(y, model="ZZZ", lags=c(frequency(y)), persistence=NULL, phi=NULL,
 
     # Merge y and xreg into one data frame
     if(!is.null(xreg) && is.numeric(y)){
-        data <- cbind(y=as.data.frame(y),as.data.frame(xreg));
-        data <- as.matrix(data)
+        if(is.matrix(xreg)){
+            data <- as.matrix(cbind(y=as.data.frame(y),as.data.frame(xreg[1:length(y),])));
+        }
+        else{
+            data <- as.matrix(cbind(y=as.data.frame(y),as.data.frame(xreg[1:length(y)])));
+        }
         data <- ts(data, start=start(y), frequency=frequency(y));
         colnames(data)[1] <- "y";
         # Give name to the explanatory variables if they do not have them
@@ -371,22 +376,28 @@ es <- function(y, model="ZZZ", lags=c(frequency(y)), persistence=NULL, phi=NULL,
         data <- y;
     }
 
-    # Prepare initials if they are numeric
-    initialValue <- vector("list",(!is.null(initial))*1 +(!is.null(initialSeason))*1 +(!is.null(initialX))*1);
-    names(initialValue) <- c("level","seasonal","xreg")[c(!is.null(initial),!is.null(initialSeason),!is.null(initialX))];
-    if(is.numeric(initial)){
-        initialValue <- switch(length(initial),
-                               "1"=list(level=initial[1]),
-                               "2"=list(level=initial[1],
-                                        trend=initial[2]));
+    # If the initial is provided in the old school style
+    if(!is.list(initial)){
+        # Prepare initials if they are numeric
+        initialValue <- vector("list",(!is.null(initial))*1 +(!is.null(initialSeason))*1 +(!is.null(initialX))*1);
+        names(initialValue) <- c("level","seasonal","xreg")[c(!is.null(initial),!is.null(initialSeason),!is.null(initialX))];
+        if(is.numeric(initial)){
+            initialValue <- switch(length(initial),
+                                   "1"=list(level=initial[1]),
+                                   "2"=list(level=initial[1],
+                                            trend=initial[2]));
+        }
+        if(!is.null(initialSeason)){
+            initialValue$seasonal <- initialSeason;
+        }
+        if(!is.null(initialX)){
+            initialValue$xreg <- initialX;
+        }
+        if(length(initialValue)==1 && is.null(initialValue$level)){
+            initialValue <- initial;
+        }
     }
-    if(!is.null(initialSeason)){
-        initialValue$seasonal <- initialSeason;
-    }
-    if(!is.null(initialX)){
-        initialValue$xreg <- initialX;
-    }
-    if(length(initialValue)==1 && is.null(initialValue$level)){
+    else{
         initialValue <- initial;
     }
 
@@ -403,8 +414,8 @@ es <- function(y, model="ZZZ", lags=c(frequency(y)), persistence=NULL, phi=NULL,
 
     ourModel <- adam(data=data, model=model, lags=lags, persistence=persistence, phi=phi,
                      loss=loss, h=h, holdout=holdout, initial=initialValue,
-                     ic=ic, bounds=bounds, distribution="dnorm",
-                     silent=silent, regressors=regressors[1], ...);
+                     ic=ic, bounds=bounds, distribution="dnorm", smoother=smoother,
+                     silent=silent, regressors=regressors[1], ets="conventional", ...);
     ourModel$call <- cl;
     ourModel$timeElapsed=Sys.time()-startTime;
 

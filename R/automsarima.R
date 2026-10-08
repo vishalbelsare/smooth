@@ -2,6 +2,7 @@
 #'
 #' @examples
 #'
+#' x <- rnorm(118,100,3)
 #' # The best ARIMA for the data
 #' ourModel <- auto.msarima(x,orders=list(ar=c(2,1),i=c(1,1),ma=c(2,1)),lags=c(1,12),
 #'                      h=18,holdout=TRUE)
@@ -19,9 +20,10 @@
 #' @rdname msarima
 #' @export
 auto.msarima <- function(y, orders=list(ar=c(3,3),i=c(2,1),ma=c(3,3)), lags=c(1,frequency(y)),
-                         initial=c("optimal","backcasting","complete"), ic=c("AICc","AIC","BIC","BICc"),
-                         loss=c("likelihood","MSE","MAE","HAM","MSEh","TMSE","GTMSE","MSCE"),
-                         h=10, holdout=FALSE,
+                         initial=c("backcasting","optimal","two-stage","complete","gradient"),
+                         ic=c("AICc","AIC","BIC","BICc"),
+                         loss=c("likelihood","MSE","MAE","HAM","MSEh","TMSE","GTMSE","MSCE","GPL"),
+                         h=0, holdout=FALSE,
                          bounds=c("usual","admissible","none"),
                          silent=TRUE,
                          xreg=NULL, regressors=c("use","select","adapt"), initialX=NULL, ...){
@@ -51,7 +53,7 @@ auto.msarima <- function(y, orders=list(ar=c(3,3),i=c(2,1),ma=c(3,3)), lags=c(1,
 
     return(adam(data, model="NNN", orders=orders, lags=lags, distribution="dnorm",
                 initial=initial, loss=loss, h=h, holdout=holdout, bounds=bounds,
-                silent=silent, regressors=regressors, ...))
+                silent=silent, regressors=regressors, adamETS=FALSE, ...))
 
 # Function estimates several msarima models and selects the best one using the selected information criterion.
 #

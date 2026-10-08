@@ -62,11 +62,12 @@ List of the following values is returned:
 \item \code{model} - Name of CES model.
 \item \code{a} - Value of complex smoothing parameter a. If \code{nsim>1}, then
 this is a vector.
-\item \code{b} - Value of complex smoothing parameter b. If \code{seasonality="n"}
-or \code{seasonality="s"}, then this is equal to NULL. If \code{nsim>1},
+\item \code{b} - Value of complex smoothing parameter b. If \code{seasonality="none"}
+or \code{seasonality="simple"}, then this is equal to NULL. If \code{nsim>1},
 then this is a vector.
 \item \code{initial} - Initial values of CES in a form of matrix. If \code{nsim>1},
 then this is an array.
+\item \code{profile} - The final profile produced in the simulation.
 \item \code{data} - Time series vector (or matrix if \code{nsim>1}) of the generated
 series.
 \item \code{states} - Matrix (or array if \code{nsim>1}) of states. States are in
@@ -101,11 +102,9 @@ simulate(ourModel,nsim=10)
 }
 \references{
 \itemize{
-\item Svetunkov, I., Kourentzes, N. (February 2015). Complex exponential
-smoothing. Working Paper of Department of Management Science, Lancaster
-University 2015:1, 1-31.
-\item Svetunkov I., Kourentzes N. (2017) Complex Exponential Smoothing
-for Time Series Forecasting. Not yet published.
+\item  Svetunkov, I., Kourentzes, N., & Ord, J. K. (2022).
+Complex exponential smoothing. Naval Research Logistics, 69(8),
+1108–1123. https://doi.org/10.1002/nav.22074
 }
 }
 \seealso{
@@ -113,7 +112,7 @@ for Time Series Forecasting. Not yet published.
 \link[smooth]{ces}, \link[stats]{Distributions}}
 }
 \author{
-Ivan Svetunkov, \email{ivan@svetunkov.ru}
+Ivan Svetunkov, \email{ivan@svetunkov.com}
 }
 \keyword{models}
 \keyword{nonlinear}

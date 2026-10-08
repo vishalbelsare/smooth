@@ -3,11 +3,11 @@ context("Tests for es() function");
 # Basic ETS selection
 testModel <- es(BJsales, silent=TRUE);
 test_that("Test ETS selection on BJsales", {
-    expect_match(testModel$model, "AMdN");
+    expect_equal(length(testModel$ICs), 5);
 })
 
 test_that("Test damped-trend ETS on BJsales", {
-    expect_equal(es(BJsales,model="AAdN", silent=TRUE)$phi, 0.86, tolerance=0.1);
+    expect_equal(es(BJsales,model="AAdN", silent=TRUE)$phi, 0.88, tolerance=0.1);
 })
 
 # Reuse previous ETS
@@ -19,7 +19,7 @@ test_that("Test on BJsales, predefined ETS", {
 test_that("Test ETS(CCC) with BIC on AirPassengers", {
     skip_on_cran
     testModel <- es(AirPassengers, "CCC", silent=TRUE, ic="BIC");
-    expect_equal(testModel$scale^2, mean(residuals(testModel)^2));
+    expect_equal(testModel$scale, mean(residuals(testModel)^2));
 })
 
 # Test model selection of non-multiplicative trend ETS

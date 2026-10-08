@@ -63,3 +63,115 @@ test_that("GUM(1[1]) with intermittent data", {
 test_that("SMA(10) with intermittent data", {
     expect_match(sim.sma(10,nsim=10,obs=100,probability=0.2)$model, "iSMA")
 })
+
+#### OM ####
+test_that("simulate.om returns probability + binary data with right shape", {
+    set.seed(42)
+    y <- rbinom(60, 1, prob=0.3 + 0.005*(1:60))
+    m <- suppressWarnings(
+        om(y, model="MNN", occurrence="odds-ratio", silent=TRUE)
+    )
+    sim <- simulate(m, nsim=3, seed=42)
+
+    expect_s3_class(sim, "om.sim")
+    expect_s3_class(sim, "oes.sim")
+    expect_equal(dim(sim$probability), c(60, 3))
+    expect_equal(dim(sim$data),        c(60, 3))
+    expect_true(all(sim$probability >= 0 & sim$probability <= 1))
+    expect_true(all(sim$data %in% c(0, 1)))
+    expect_equal(sim$occurrence, "odds-ratio")
+})
+
+test_that("simulate.om is seed-deterministic", {
+    set.seed(1)
+    y <- rbinom(40, 1, 0.4)
+    m <- suppressWarnings(om(y, model="MNN", occurrence="odds-ratio",
+                             silent=TRUE))
+    a <- simulate(m, nsim=2, seed=7)
+    b <- simulate(m, nsim=2, seed=7)
+    expect_equal(unclass(a$probability), unclass(b$probability))
+    expect_equal(unclass(a$data),        unclass(b$data))
+})
+
+test_that("simulate.om dispatches to print.oes.sim cleanly", {
+    set.seed(3)
+    y <- rbinom(40, 1, 0.4)
+    m_om <- suppressWarnings(om(y, model="MNN", occurrence="direct",
+                                silent=TRUE))
+    expect_output(print(simulate(m_om, nsim=1, seed=0)),
+                  "Data generated from:")
+})
+
+#### OMG ####
+test_that("simulate.omg returns probability + binary data + sub-sims", {
+    set.seed(2)
+    y <- rbinom(80, 1, prob=0.3)
+    m <- suppressWarnings(omg(y, modelA="MNN", modelB="MNN", silent=TRUE))
+    sim <- simulate(m, nsim=2, seed=42)
+
+    expect_s3_class(sim, "omg.sim")
+    expect_s3_class(sim, "oes.sim")
+    expect_equal(dim(sim$probability), c(80, 2))
+    expect_equal(dim(sim$data),        c(80, 2))
+    expect_true(all(sim$probability >= 0 & sim$probability <= 1))
+    expect_true(all(sim$data %in% c(0, 1)))
+    expect_s3_class(sim$modelA, "om.sim")
+    expect_s3_class(sim$modelB, "om.sim")
+    expect_equal(sim$occurrence, "general")
+})
+
+test_that("simulate.omg dispatches to print.oes.sim cleanly", {
+    set.seed(3)
+    y <- rbinom(40, 1, 0.4)
+    m_omg <- suppressWarnings(omg(y, modelA="MNN", modelB="MNN",
+                                  silent=TRUE))
+    expect_output(print(simulate(m_omg, nsim=1, seed=0)),
+                  "Data generated from:")
+})
+
+#### Regression: simulate.adam after the simulateADAMCore split ####
+test_that("simulate.adam still works after the simulateADAMCore split", {
+    set.seed(4)
+    y <- ts(rnorm(60, 100, 5), frequency=12)
+    m <- adam(y, model="ANN", silent=TRUE)
+    sim <- simulate(m, nsim=2, seed=42)
+    expect_s3_class(sim, "adam.sim")
+    expect_equal(dim(sim$data), c(60, 2))
+})
+
+#### Head-refinement alignment between sim.es and es/adam fitters ####
+# Before the head-refinement fix the simulator started from the raw initial
+# level while the fitter walked (m-1) trend steps forward across the seasonal
+# head. On ETS(A,A,A) with lags=12 this produced a systematic offset of
+# (m-1) * trend on the first simulated observation. Guard against regression.
+test_that("sim.es reproduces the fitted first observation for trended-seasonal ETS", {
+    fit <- es(AirPassengers, model="AAA", h=0, silent=TRUE)
+    initVec <- c(fit$initial$level, fit$initial$trend)
+    initSeasVec <- fit$initial$seasonal
+    simObj <- sim.es(model="AAA", obs=length(AirPassengers), nsim=1,
+                     persistence=fit$persistence, phi=fit$phi,
+                     initial=initVec, initialSeason=initSeasVec,
+                     frequency=12,
+                     randomizer="rnorm", mean=0, sd=1e-12)
+    expect_equal(as.numeric(simObj$data)[1],
+                 as.numeric(fitted(fit))[1],
+                 tolerance=1e-6)
+})
+
+test_that("sim.es bounds each seasonal smoothing parameter by its own alpha", {
+    set.seed(1)
+    x <- sim.es("ANA", frequency=4, obs=20, nsim=200)
+    expect_true(all(x$persistence[2,] <= 1-x$persistence[1,]))
+})
+
+test_that("sim.es gives each inverse Gaussian simulation its own likelihood", {
+    set.seed(2)
+    y <- sim.es("MNN", obs=30, nsim=3, randomizer="rinvgauss", mean=1, dispersion=0.1)
+    e <- y$residuals
+    d <- y$data
+    expected <- sapply(1:3, function(i){
+        return(-0.5*(30*(log(mean(e[,i]^2/(1+e[,i]))/(2*pi))-1) +
+                         sum(log(d[,i]/(1+e[,i]))) - 3*sum(log(d[,i]))))
+    })
+    expect_equal(as.numeric(y$logLik), expected)
+})

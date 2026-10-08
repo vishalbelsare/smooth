@@ -32,50 +32,9 @@
 #' @param ...  Other non-documented parameters.  For example parameter
 #' \code{model} can accept a previously estimated SMA model and use its
 #' parameters.
-#' @return Object of class "smooth" is returned. It contains the list of the
-#' following values:
-#'
-#' \itemize{
-#' \item \code{model} - the name of the estimated model.
-#' \item \code{timeElapsed} - time elapsed for the construction of the model.
-#' \item \code{states} - the matrix of the fuzzy components of ssarima, where
-#' \code{rows} correspond to time and \code{cols} to states.
-#' \item \code{transition} - matrix F.
-#' \item \code{persistence} - the persistence vector. This is the place, where
-#' smoothing parameters live.
-#' \item \code{measurement} - measurement vector of the model.
-#' \item \code{order} - order of moving average.
-#' \item \code{initial} - Initial state vector values.
-#' \item \code{initialType} - Type of initial values used.
-#' \item \code{nParam} - table with the number of estimated / provided parameters.
-#' If a previous model was reused, then its initials are reused and the number of
-#' provided parameters will take this into account.
-#' \item \code{fitted} - the fitted values.
-#' \item \code{forecast} - the point forecast.
-#' \item \code{lower} - the lower bound of prediction interval. When
-#' \code{interval=FALSE} then NA is returned.
-#' \item \code{upper} - the higher bound of prediction interval. When
-#' \code{interval=FALSE} then NA is returned.
-#' \item \code{residuals} - the residuals of the estimated model.
-#' \item \code{errors} - The matrix of 1 to h steps ahead errors. Only returned when the
-#' multistep losses are used and semiparametric interval is needed.
-#' \item \code{s2} - variance of the residuals (taking degrees of freedom into
-#' account).
-#' \item \code{interval} - type of interval asked by user.
-#' \item \code{level} - confidence level for interval.
-#' \item \code{cumulative} - whether the produced forecast was cumulative or not.
-#' \item \code{y} - the original data.
-#' \item \code{holdout} - the holdout part of the original data.
-#' \item \code{ICs} - values of information criteria of the model. Includes AIC,
-#' AICc, BIC and BICc.
-#' \item \code{logLik} - log-likelihood of the function.
-#' \item \code{lossValue} - Cost function value.
-#' \item \code{loss} - Type of loss function used in the estimation.
-#' \item \code{accuracy} - vector of accuracy measures for the
-#' holdout sample. Includes: MPE, MAPE, SMAPE, MASE, sMAE, RelMAE, sMSE and
-#' Bias coefficient (based on complex numbers). This is available only when
-#' \code{holdout=TRUE}.
-#' }
+#' @return Object of class "adam" is returned with similar elements to the
+#' \link[smooth]{adam} function. SMA(n) is the AR(n) model with all the
+#' parameters equal to 1/n, so its order is the AR one in \code{orders}.
 #'
 #' @references \itemize{
 #' \item Svetunkov, I., & Petropoulos, F. (2017). Old dog, new tricks: a
@@ -127,6 +86,12 @@ sma <- function(y, order=NULL, ic=c("AICc","AIC","BIC","BICc"),
     }
     else{
         model <- ellipsis$model;
+
+        if(inherits(y,"Mdata")){
+            h <- y$h;
+            holdout <- TRUE;
+            y <- ts(c(y$x,y$xx),start=start(y$x),frequency=frequency(y$x));
+        }
     }
 
     # If a previous model provided as a model, write down the variables
@@ -138,7 +103,7 @@ sma <- function(y, order=NULL, ic=c("AICc","AIC","BIC","BICc"),
             stop("The provided model is not Simple Moving Average!",call.=FALSE);
         }
         else{
-            order <- model$order;
+            order <- model$orders[1];
         }
     }
 
@@ -184,63 +149,68 @@ sma <- function(y, order=NULL, ic=c("AICc","AIC","BIC","BICc"),
     Etype <- "A";
     Ttype <- Stype <- "N";
 
-    componentsNumberETS <- componentsNumberETSSeasonal <- xregNumber <- 0;
+    componentsNumberETS <- componentsNumberETSSeasonal <- componentsNumberETSNonSeasonal <- xregNumber <- 0;
     constantRequired <- FALSE;
     ot <- yInSample;
     ot[] <- 1;
 
+
     CreatorSMA <- function(order){
-        lagsModelAll <- as.matrix(rep(1,order));
-        lagsModelMax <- 1;
-        obsStates <- obsInSample+1;
+        lagsModelAll <- matrix(1:order, ncol=1);
+        lagsModelMax <- max(lagsModelAll);
+        obsStates <- obsInSample+lagsModelMax;
 
-        # Create ADAM profiles
-        profilesRecentTable <- matrix(0,length(lagsModelAll),lagsModelMax,
-                                      dimnames=list(lagsModelAll,NULL));
-        # Create the matrix of observed profiles indices
-        profilesObservedTable <- matrix((1:order)-1,length(lagsModelAll),obsAll+lagsModelMax,
-                                        dimnames=list(lagsModelAll,NULL));
+        # # Create ADAM profiles
+        adamProfiles <- adamProfileCreator(lagsModelAll, lagsModelMax, obsAll);
 
-        if(order>1){
-            matF <- rbind(cbind(rep(1/order,order-1),diag(order-1)),
-                          c(1/order,rep(0,order-1)));
-            matWt <- matrix(c(1,rep(0,order-1)),obsInSample,order,byrow=TRUE);
-        }
-        else{
-            matF <- matrix(1,1,1);
-            matWt <- matrix(1,obsInSample,1);
-        }
+        indexLookupTable <- adamProfiles$lookup;
+        profilesRecentTable <- adamProfiles$recent;
+        profilesRecentTable[order,1:order] <- mean(yInSample[1:order]);
+
+        # State space matrices
+        matF <- matrix(1/order,order,order);
+        matWt <- matrix(1,obsInSample,order,byrow=TRUE);
         vecG <- matrix(1/order,order);
-        matVt <- matrix(NA,order,obsStates);
-        matVt[1,1:order] <- rep(mean(yInSample[1:order]),order);
-        # if(order>1){
-        #     for(i in 2:order){
-        #         matVt[i,1:(order-i+1)] <- matVt[i-1,1:(order-i+1)+1] -
-        #             matVt[1,1:(order-i+1)] * matF[i-1,1];
-        #     }
-        # }
+        matVt <- matrix(0,order,obsStates);
+
+        # Create C++ adam class, which will then use fit, forecast etc methods
+        adamCpp <- new(adamCore,
+                       lagsModelAll, Etype, Ttype, Stype,
+                       componentsNumberETSNonSeasonal,
+                       componentsNumberETSSeasonal,
+                       componentsNumberETS, order,
+                       xregNumber, length(lagsModelAll),
+                       constantRequired, FALSE);
+        adamCpp$headLength <- adam_headLength(ellipsis$headLength, lagsModelMax, obsInSample)$flag;
 
         #### Fitter and the losses calculation ####
-        adamFitted <- adamFitterWrap(matVt, matWt, matF, vecG,
-                                     lagsModelAll, profilesObservedTable, profilesRecentTable,
-                                     Etype, Ttype, Stype, componentsNumberETS, componentsNumberETSSeasonal,
-                                     order, xregNumber, constantRequired,
-                                     yInSample, ot, TRUE);
+        adamFitted <- adamCpp$fit(matVt, matWt,
+                                  matF, vecG,
+                                  indexLookupTable, profilesRecentTable,
+                                  yInSample, ot,
+                                  TRUE, 2, "n");
 
         # Get scale, cf, logLik and IC
-        scale <- sqrt(sum(adamFitted$errors^2)/obsInSample);
-        cfObjective <- sum(dnorm(x=yInSample, mean=adamFitted$yFitted, sd=scale, log=TRUE));
-        logLik <- structure(cfObjective, nobs=obsInSample, df=1, class="logLik");
+        scale <- sum(adamFitted$errors^2)/obsInSample;
+        cfObjective <- sum(dnorm(x=yInSample, mean=adamFitted$fitted, sd=sqrt(scale), log=TRUE));
+
+        # SMA is AR(order) with fixed coefficients 1/order. They sum to 1 (a unit
+        # root), so the model is non-stationary and all `order` initial states
+        # persist and are identifiable (rank(X) = order, verified by the probe).
+        # df = order (backcast initials) + 1 (scale). This grows with the order,
+        # so higher orders are penalised in the IC-based order selection.
+        logLik <- structure(cfObjective, nobs=obsInSample, df=order+1, class="logLik");
         ICValue <- icFunction(logLik);
 
         return(ICValue);
-        # return(list(order=order,cfObjective=cfObjective,ICValue=ICValue,logLik=logLik));
     }
 
 
     # Select the order of sma
     if(orderSelect){
-        maxOrder <- min(200,obsInSample);
+        # df = order + 1, so cap the order to keep the AICc small-sample
+        # correction (denominator obs - df - 1) well defined and positive.
+        maxOrder <- min(200, max(1, obsInSample-3));
         ICs <- rep(NA,maxOrder);
         if(fast){
             # The lowest bound
@@ -310,6 +280,16 @@ sma <- function(y, order=NULL, ic=c("AICc","AIC","BIC","BICc"),
                      loss="MSE", bounds="none");
 
     smaModel$model <- paste0("SMA(",order,")");
+    # SMA is AR(order) with fixed unit-root coefficients (1/order): all `order`
+    # initial states are identifiable (rank(X) = order), plus the scale, so
+    # df = order + 1. The generic adam "use" path SMA is built on hardcodes
+    # df = 1, so set the correct value here.
+    smaModel$nParam[] <- 0;
+    smaModel$nParam[1,1] <- order;
+    smaModel$nParam[1,4] <- 1;
+    smaModel$nParam[1,5] <- order+1;
+    smaModel$logLik <- structure(as.numeric(smaModel$logLik), nobs=nobs(smaModel),
+                                 df=order+1, class="logLik");
     smaModel$timeElapsed <- Sys.time()-startTime;
     smaModel$call <- cl;
     if(orderSelect){

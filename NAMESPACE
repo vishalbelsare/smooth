@@ -2,15 +2,24 @@
 
 S3method(AICc,smooth)
 S3method(BICc,smooth)
+S3method(accuracy,smooth)
+S3method(accuracy,smooth.forecast)
 S3method(actuals,adam)
 S3method(actuals,msdecompose)
+S3method(actuals,om)
+S3method(actuals,omg)
+S3method(actuals,omg_submodel)
 S3method(actuals,smooth)
 S3method(actuals,smooth.forecast)
 S3method(as.data.frame,summary.adam)
+S3method(as.data.frame,summary.omg)
 S3method(coef,adam)
 S3method(coef,smooth)
 S3method(coefbootstrap,adam)
+S3method(coefbootstrap,om)
+S3method(coefbootstrap,omg)
 S3method(confint,adam)
+S3method(confint,omg)
 S3method(errorType,adam)
 S3method(errorType,msdecompose)
 S3method(errorType,smooth)
@@ -21,10 +30,12 @@ S3method(fitted,msdecompose)
 S3method(fitted,smooth)
 S3method(fitted,smooth.forecast)
 S3method(forecast,adam)
+S3method(forecast,adamTBATS)
 S3method(forecast,adamCombined)
 S3method(forecast,msdecompose)
-S3method(forecast,oes)
-S3method(forecast,smooth)
+S3method(forecast,om)
+S3method(forecast,omCombined)
+S3method(forecast,omg)
 S3method(implant,adam)
 S3method(lags,Arima)
 S3method(lags,adam)
@@ -47,7 +58,6 @@ S3method(modelType,adam)
 S3method(modelType,default)
 S3method(modelType,ets)
 S3method(modelType,msdecompose)
-S3method(modelType,oesg)
 S3method(modelType,smooth)
 S3method(modelType,smooth.sim)
 S3method(multicov,adam)
@@ -71,7 +81,6 @@ S3method(plot,adam)
 S3method(plot,adam.forecast)
 S3method(plot,adam.predict)
 S3method(plot,msdecompose)
-S3method(plot,oes)
 S3method(plot,oes.sim)
 S3method(plot,reapply)
 S3method(plot,reapplyCombined)
@@ -82,69 +91,90 @@ S3method(plot,smoothC)
 S3method(pls,default)
 S3method(pls,smooth)
 S3method(pointLik,adam)
-S3method(pointLik,oes)
+S3method(pointLik,adamTBATS)
+S3method(pointLik,om)
+S3method(pointLik,sm.adam)
 S3method(pointLik,smooth)
 S3method(predict,adam)
+S3method(predict,adamTBATS)
 S3method(print,adam)
 S3method(print,adam.forecast)
 S3method(print,adam.sim)
 S3method(print,adamCombined)
 S3method(print,msdecompose)
-S3method(print,oes)
 S3method(print,oes.sim)
+S3method(print,om)
+S3method(print,omCombined)
+S3method(print,omg)
 S3method(print,reapply)
 S3method(print,reapplyCombined)
-S3method(print,smooth)
 S3method(print,smooth.forecast)
 S3method(print,smooth.sim)
 S3method(print,summary.adam)
+S3method(print,summary.omg)
 S3method(reapply,adam)
+S3method(reapply,adamTBATS)
 S3method(reapply,adamCombined)
 S3method(reapply,default)
 S3method(reforecast,adam)
+S3method(reforecast,adamTBATS)
 S3method(reforecast,default)
 S3method(residuals,adam)
 S3method(residuals,msdecompose)
 S3method(residuals,smooth)
 S3method(rmultistep,adam)
 S3method(rmultistep,default)
-S3method(rmultistep,smooth)
+S3method(rmultistep,adamTBATS)
 S3method(rstandard,adam)
+S3method(rstandard,om)
+S3method(rstandard,omg)
 S3method(rstandard,smooth)
 S3method(rstudent,adam)
+S3method(rstudent,om)
+S3method(rstudent,omg)
 S3method(rstudent,smooth)
 S3method(sigma,adam)
+S3method(sigma,msdecompose)
+S3method(sigma,om)
 S3method(sigma,smooth)
 S3method(sigma,smooth.sim)
 S3method(simulate,adam)
+S3method(simulate,adamTBATS)
+S3method(simulate,om)
+S3method(simulate,omg)
 S3method(simulate,smooth)
 S3method(sm,adam)
 S3method(summary,adam)
 S3method(summary,adamCombined)
+S3method(summary,om)
+S3method(summary,omCombined)
+S3method(summary,omg)
 S3method(summary,smooth)
 S3method(summary,smooth.forecast)
 S3method(vcov,adam)
+S3method(vcov,om)
+S3method(vcov,omg)
 S3method(xtable,adam)
 S3method(xtable,summary.adam)
+export(accuracy)
 export(adam)
 export(auto.adam)
 export(auto.ces)
 export(auto.gum)
 export(auto.msarima)
+export(auto.om)
 export(auto.ssarima)
 export(ces)
 export(cma)
 export(es)
-export(es_old)
-export(ges)
 export(gum)
 export(is.adam)
 export(is.adam.sim)
 export(is.msarima)
 export(is.msdecompose)
 export(is.msdecompose.forecast)
-export(is.oes)
-export(is.oesg)
+export(is.om)
+export(is.omg)
 export(is.smooth)
 export(is.smooth.forecast)
 export(is.smooth.sim)
@@ -153,11 +183,12 @@ export(lags)
 export(modelName)
 export(modelType)
 export(msarima)
-export(msarima_old)
 export(msdecompose)
 export(multicov)
 export(oes)
 export(oesg)
+export(om)
+export(omg)
 export(orders)
 export(pls)
 export(reapply)
@@ -170,147 +201,170 @@ export(sim.oes)
 export(sim.sma)
 export(sim.ssarima)
 export(sma)
-export(sma_old)
 export(smoothCombine)
 export(sowhat)
+export(sparma)
 export(ssarima)
+export(tbats)
 export(xtable)
 import(Rcpp)
 import(zoo)
 importFrom(MASS,mvrnorm)
-importFrom(generics,forecast)
-importFrom(grDevices,dev.interactive)
-importFrom(grDevices,devAskNewPage)
-importFrom(grDevices,rgb)
-importFrom(graphics,abline)
-importFrom(graphics,layout)
-importFrom(graphics,legend)
-importFrom(graphics,lines)
-importFrom(graphics,par)
-importFrom(graphics,plot)
-importFrom(graphics,points)
-importFrom(graphics,polygon)
-importFrom(graphics,text)
-importFrom(greybox,AICc)
-importFrom(greybox,BICc)
-importFrom(greybox,actuals)
-importFrom(greybox,alm)
-importFrom(greybox,coefbootstrap)
-importFrom(greybox,dalaplace)
-importFrom(greybox,detectdst)
-importFrom(greybox,dgnorm)
-importFrom(greybox,dlaplace)
-importFrom(greybox,ds)
-importFrom(greybox,errorType)
-importFrom(greybox,extractScale)
-importFrom(greybox,extractSigma)
-importFrom(greybox,graphmaker)
-importFrom(greybox,hm)
-importFrom(greybox,implant)
-importFrom(greybox,is.alm)
-importFrom(greybox,is.occurrence)
-importFrom(greybox,is.scale)
-importFrom(greybox,measures)
-importFrom(greybox,nparam)
-importFrom(greybox,outlierdummy)
-importFrom(greybox,plaplace)
-importFrom(greybox,pointLik)
-importFrom(greybox,polyprod)
-importFrom(greybox,ps)
-importFrom(greybox,qalaplace)
-importFrom(greybox,qgnorm)
-importFrom(greybox,qlaplace)
-importFrom(greybox,qs)
-importFrom(greybox,ralaplace)
-importFrom(greybox,rgnorm)
-importFrom(greybox,rlaplace)
-importFrom(greybox,rs)
-importFrom(greybox,sm)
-importFrom(greybox,stepwise)
-importFrom(greybox,xregExpander)
+importFrom(generics,
+  accuracy,
+  forecast
+)
+importFrom(grDevices,
+  colorRampPalette,
+  dev.interactive,
+  devAskNewPage,
+  palette,
+  rgb
+)
+importFrom(graphics,
+  abline,
+  layout,
+  legend,
+  lines,
+  par,
+  plot,
+  points,
+  polygon,
+  text
+)
+importFrom(greybox,
+  AICc,
+  BICc,
+  actuals,
+  alm,
+  coefbootstrap,
+  dalaplace,
+  detectdst,
+  dgnorm,
+  dlaplace,
+  ds,
+  dsrboot,
+  errorType,
+  extractScale,
+  extractSigma,
+  graphmaker,
+  hm,
+  implant,
+  is.alm,
+  is.occurrence,
+  is.scale,
+  measures,
+  nparam,
+  outlierdummy,
+  plaplace,
+  pointLik,
+  polyprod,
+  ps,
+  qalaplace,
+  qgnorm,
+  qlaplace,
+  qs,
+  ralaplace,
+  rgnorm,
+  rlaplace,
+  rs,
+  sm,
+  stepwise,
+  xregExpander
+)
+importFrom(methods,new)
 importFrom(nloptr,nloptr)
-importFrom(pracma,hessian)
-importFrom(statmod,dinvgauss)
-importFrom(statmod,qinvgauss)
-importFrom(statmod,rinvgauss)
-importFrom(stats,.lm.fit)
-importFrom(stats,AIC)
-importFrom(stats,BIC)
-importFrom(stats,acf)
-importFrom(stats,as.formula)
-importFrom(stats,coef)
-importFrom(stats,confint)
-importFrom(stats,contrasts)
-importFrom(stats,cor)
-importFrom(stats,cov)
-importFrom(stats,dbeta)
-importFrom(stats,decompose)
-importFrom(stats,deltat)
-importFrom(stats,dgamma)
-importFrom(stats,dlnorm)
-importFrom(stats,dlogis)
-importFrom(stats,dnorm)
-importFrom(stats,dt)
-importFrom(stats,end)
-importFrom(stats,filter)
-importFrom(stats,fitted)
-importFrom(stats,formula)
-importFrom(stats,frequency)
-importFrom(stats,is.ts)
-importFrom(stats,lm)
-importFrom(stats,logLik)
-importFrom(stats,lowess)
-importFrom(stats,median)
-importFrom(stats,model.frame)
-importFrom(stats,model.matrix)
-importFrom(stats,na.pass)
-importFrom(stats,nlminb)
-importFrom(stats,nobs)
-importFrom(stats,optim)
-importFrom(stats,optimize)
-importFrom(stats,pacf)
-importFrom(stats,plnorm)
-importFrom(stats,pnorm)
-importFrom(stats,poly)
-importFrom(stats,ppoints)
-importFrom(stats,predict)
-importFrom(stats,qchisq)
-importFrom(stats,qgamma)
-importFrom(stats,qlnorm)
-importFrom(stats,qlogis)
-importFrom(stats,qnorm)
-importFrom(stats,qqline)
-importFrom(stats,qqnorm)
-importFrom(stats,qqplot)
-importFrom(stats,qt)
-importFrom(stats,quantile)
-importFrom(stats,rbinom)
-importFrom(stats,reformulate)
-importFrom(stats,residuals)
-importFrom(stats,rgamma)
-importFrom(stats,rlnorm)
-importFrom(stats,rlogis)
-importFrom(stats,rnorm)
-importFrom(stats,rstandard)
-importFrom(stats,rstudent)
-importFrom(stats,rt)
-importFrom(stats,runif)
-importFrom(stats,sd)
-importFrom(stats,setNames)
-importFrom(stats,sigma)
-importFrom(stats,simulate)
-importFrom(stats,start)
-importFrom(stats,terms)
-importFrom(stats,time)
-importFrom(stats,ts)
-importFrom(stats,update)
-importFrom(stats,update.formula)
-importFrom(stats,var)
-importFrom(stats,vcov)
-importFrom(stats,window)
-importFrom(utils,head)
-importFrom(utils,packageVersion)
-importFrom(utils,tail)
+importFrom(statmod,
+  dinvgauss,
+  gauss.quad,
+  qinvgauss,
+  rinvgauss
+)
+importFrom(stats,
+  .lm.fit,
+  AIC,
+  BIC,
+  acf,
+  as.formula,
+  coef,
+  confint,
+  contrasts,
+  cor,
+  cov,
+  dbeta,
+  decompose,
+  deltat,
+  dgamma,
+  dlnorm,
+  dlogis,
+  dnorm,
+  dt,
+  end,
+  filter,
+  fitted,
+  formula,
+  frequency,
+  is.ts,
+  lm,
+  logLik,
+  lowess,
+  median,
+  model.frame,
+  model.matrix,
+  na.pass,
+  nlminb,
+  nobs,
+  optim,
+  optimize,
+  pacf,
+  plnorm,
+  pnorm,
+  poly,
+  ppoints,
+  predict,
+  qchisq,
+  qgamma,
+  qlnorm,
+  qlogis,
+  qnorm,
+  qqline,
+  qqnorm,
+  qqplot,
+  qt,
+  quantile,
+  rbinom,
+  reformulate,
+  residuals,
+  rgamma,
+  rlnorm,
+  rlogis,
+  rnorm,
+  rstandard,
+  rstudent,
+  rt,
+  runif,
+  sd,
+  setNames,
+  sigma,
+  simulate,
+  start,
+  supsmu,
+  terms,
+  time,
+  ts,
+  update,
+  update.formula,
+  var,
+  vcov,
+  window
+)
+importFrom(utils,
+  combn,
+  head,
+  modifyList,
+  packageVersion,
+  tail
+)
 importFrom(xtable,xtable)
 importFrom(zoo,zoo)
 useDynLib(smooth)

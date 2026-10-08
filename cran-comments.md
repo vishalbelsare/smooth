@@ -1,40 +1,41 @@
 ---
 title: "Cran Comments"
 author: "Ivan Svetunkov"
-date: "01 June 2023"
+date: "04 September 2026"
 output: html_document
 ---
 
+## Update
+
+This submission fixes the issues with the tests in v4.5.1 identified on CRAN.
+
+
 ## Version
-This is ``smooth`` package, v3.2.1.
-
-
-## Resubmission comments
-**We now don't require the specific C++ version**
+This is ``smooth`` package, v4.5.2
 
 
 ## Test environments
-* local Ubuntu 22.04.2, R 4.3.0
+* local Ubuntu 26.04, R 4.6.1
 * github actions
 * win-builder (devel and release)
-* rhub with rhub::check_for_cran() command
+* rhub v2
 
 ## R CMD check results
 R CMD check results
 checking installed package size ... NOTE
-    installed size is 27.0Mb
+    installed size is 20.8Mb
     sub-directories of 1Mb or more:
       R      1.2Mb
-      doc    3.4Mb
-      libs  21.9Mb
+      doc    3.3Mb
+      libs  15.7Mb
 0 errors | 0 warnings | 1 note
 
 ## Github actions
 Successful checks for:
 
-- Windows latest release with R 4.3.0
-- MacOS latest macOS Big Sur 10.16 with R 4.2.2
-- Ubuntu 20.04.6 with R 4.3.0
+- Windows latest release with latest R
+- MacOS 15.7.3 with latest R
+- Ubuntu 24.04.4 LTS with latest R
 
 ## win-builder check results
 >* checking package dependencies ... NOTE
@@ -42,14 +43,13 @@ Successful checks for:
 
 This is expected, because doMC is not available for Windows.
 
-## rhub checks
-### Windows Server 2022, R-devel, 64 bit
-> * checking package dependencies ... ERROR
-> Package suggested but not available: 'doMC'
+## R-hub
+Successful checks for:
 
-This is expected from Windows Server - doMC is not available for that platform.
-
-All the resources are available online, not clear why the server cannot find them.
+- Windows Server 2022 x64 (build 26100), R 4.5.0
+- MacOS macOS Sequoia 15.7.7, R 4.5.0
+- MacOS 15.7.3, R 4.5.0
+- Ubuntu 24.04.4 LTS, R 4.5.0
 
 ## Downstream dependencies
 I have also run R CMD check on reverse dependencies of smooth.

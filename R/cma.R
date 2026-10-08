@@ -6,7 +6,7 @@
 #' shifts it back in time. Otherwise an AR(order+1) model is constructed
 #' with the preset parameters:
 #'
-#' phi_i = {0.5,1,1,...,0.5} / order
+#' \deqn{phi_i = {0.5,1,1,...,0.5} / order}
 #'
 #' This then corresponds to the centered MA with 0.5 weight for the
 #' first observation and 0.5 weight for an additional one. e.g. if this is
@@ -69,6 +69,8 @@ cma <- function(y, order=NULL, silent=TRUE, ...){
 
 # Start measuring the time of calculations
     startTime <- Sys.time();
+
+    cl <- match.call();
 
     holdout <- FALSE;
     h <- 0;
@@ -163,19 +165,19 @@ cma <- function(y, order=NULL, silent=TRUE, ...){
     cfObjective <- mean(errors^2);
 
     model <- structure(list(model=modelname,timeElapsed=Sys.time()-startTime,
-                            order=order, nParam=nParam,
+                            order=order, nParam=nParam, distribution="dnorm",
                             fitted=yFitted,forecast=yForecast,residuals=errors,s2=s2,
-                            y=y,
-                            ICs=NULL,logLik=logLik,lossValue=cfObjective,loss="MSE"),
-                       class="smooth");
+                            data=smaModel$data, formula=smaModel$formula, call=cl,
+                            initialType=smaModel$initialType,
+                            logLik=logLik,lossValue=cfObjective,loss="MSE"),
+                       class=c("adam","smooth"));
 
     ICs <- c(AIC(model),AICc(model),BIC(model),BICc(model));
     names(ICs) <- c("AIC","AICc","BIC","BICc");
     model$ICs <- ICs;
 
     if(!silent){
-        graphmaker(y, yForecast, yFitted, legend=FALSE, vline=FALSE,
-                   main=model$model);
+        plot(model, 7);
     }
 
     return(model);

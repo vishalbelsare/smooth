@@ -4,7 +4,8 @@
 \alias{msdecompose}
 \title{Multiple seasonal classical decomposition}
 \usage{
-msdecompose(y, lags = c(12), type = c("additive", "multiplicative"))
+msdecompose(y, lags = c(12), type = c("additive", "multiplicative"),
+  smoother = c("lowess", "ma", "supsmu", "global"), ...)
 }
 \arguments{
 \item{y}{Vector or ts object, containing data needed to be smoothed.}
@@ -13,12 +14,25 @@ msdecompose(y, lags = c(12), type = c("additive", "multiplicative"))
 
 \item{type}{The type of decomposition. If \code{"multiplicative"} is selected,
 then the logarithm of data is taken prior to the decomposition.}
+
+\item{smoother}{The type of function used in the smoother of the data to
+extract the trend and in seasonality smoothing. \code{smoother="ma"} relies
+on the centred moving average and will result in the classical decomposition.
+\code{smoother="lowess"} will use \link[stats]{lowess}, resulting in a
+decomposition similar to the STL (\link[stats]{stl}). Finally,
+\code{smoother="supsmu"} will use the Friedman's super smoother via
+\link[stats]{supsmu}. \code{smoother="global"} will fit the global model to
+the data.}
+
+\item{...}{Other parameters passed to smoothers. Only works with
+lowess/supsmu.}
 }
 \value{
 The object of the class "msdecompose" is return, containing:
 \itemize{
 \item \code{y} - the original time series.
-\item \code{initial} - the estimates of the initial level and trend.
+\item \code{initial} - the named list of the estimates of the initial level,
+trend and seasonality.
 \item \code{trend} - the long term trend in the data.
 \item \code{seasonal} - the list of seasonal parameters.
 \item \code{lags} - the provided lags.
@@ -45,11 +59,19 @@ plot(ourModel)
 plot(forecast(ourModel, model="AAN", h=12))
 
 }
+\references{
+\itemize{
+\item Svetunkov I. (2023) Smooth forecasting with the smooth package in R. arXiv:2301.01790.
+\doi{10.48550/arXiv.2301.01790}.
+\item Svetunkov I. (2015 - Inf) "smooth" package for R - series of posts about the underlying
+models and how to use them: \url{https://openforecast.org/category/r-en/smooth/}.
+}
+}
 \seealso{
 \code{\link[stats]{filter}}
 }
 \author{
-Ivan Svetunkov, \email{ivan@svetunkov.ru}
+Ivan Svetunkov, \email{ivan@svetunkov.com}
 }
 \keyword{models}
 \keyword{nonlinear}

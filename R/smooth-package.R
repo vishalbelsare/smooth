@@ -50,10 +50,9 @@
 #' }
 #'
 #' @name smooth
-#' @docType package
-#' @author Ivan Svetunkov
+#' @aliases smooth-package
+#' @template ssAuthor
 #'
-#' Maintainer: Ivan Svetunkov <ivan@svetunkov.ru>
 #' @seealso \code{\link[greybox]{forecast}, \link[smooth]{es},
 #' \link[smooth]{ssarima}, \link[smooth]{ces}, \link[smooth]{gum}}
 #'
@@ -67,13 +66,13 @@
 #'
 #' @examples
 #'
-#' \donttest{y <- ts(rnorm(100,10,3),frequency=12)
+#' \donttest{y <- ts(rnorm(100,10,3), frequency=12)
 #'
-#' adam(y,h=20,holdout=TRUE)
-#' es(y,h=20,holdout=TRUE)
-#' gum(y,h=20,holdout=TRUE)
-#' auto.ces(y,h=20,holdout=TRUE)
-#' auto.ssarima(y,h=20,holdout=TRUE)}
+#' adam(y, h=20, holdout=TRUE)
+#' es(y, h=20, holdout=TRUE)
+#' gum(y, h=20, holdout=TRUE)
+#' auto.ces(y, h=20, holdout=TRUE)
+#' auto.ssarima(y, h=20, holdout=TRUE)}
 #'
 #' @import zoo Rcpp
 #' @importFrom nloptr nloptr
@@ -81,7 +80,7 @@
 #' @importFrom stats AIC BIC cov decompose median coef optimize nlminb cor var simulate lm as.formula residuals
 #' @importFrom stats dbeta qnorm qt qlnorm quantile rbinom rlnorm rnorm rt runif plnorm pnorm
 #' @importFrom stats deltat end frequency is.ts start time ts
-#' @importFrom utils packageVersion
+#' @importFrom utils packageVersion combn modifyList
 #' @importFrom greybox xregExpander stepwise qs qlaplace ps plaplace ds dlaplace graphmaker measures hm
 #' @useDynLib smooth
 NULL
